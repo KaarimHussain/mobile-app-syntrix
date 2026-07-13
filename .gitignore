@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# PGLite database (auto-created on server startup)
+backend/pgdata/
