@@ -6,7 +6,7 @@ import { User } from './types';
 interface AuthContextValue {
   user: User | null;
   ready: boolean;
-  login: (email: string, password: string) => Promise<string | null>; // returns error message
+  login: (email: string, password: string) => Promise<string | null>;
   logout: () => void;
 }
 
@@ -17,17 +17,18 @@ const AuthContext = createContext<AuthContextValue>({
   logout: () => {},
 });
 
-const SESSION_KEY = 'session.email';
+const SESSION_KEY = 'session.token';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
 
+  // Restore session on app startup using stored JWT — no password needed
   useEffect(() => {
     storage.getItem(SESSION_KEY)
-      .then(async (email: string | null) => {
-        if (email) {
-          const found = await actions.login(email);
+      .then(async (token: string | null) => {
+        if (token) {
+          const found = await actions.verifySession(token);
           if (found) {
             setUser(found);
           } else {
@@ -40,22 +41,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    // Initial refresh
     refresh(user._id);
-    // Poll updates every 4 seconds to sync with server/other employees
     const interval = setInterval(() => {
       refresh(user._id);
     }, 4000);
     return () => clearInterval(interval);
   }, [user]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<string | null> => {
+    if (!email.trim()) return 'Email is required.';
     if (!password.trim()) return 'Password is required.';
-    const found = await actions.login(email);
-    if (!found) return 'No active account with that email.';
-    setUser(found);
-    await storage.setItem(SESSION_KEY, found.email);
-    return null;
+    try {
+      const { user: found, sessionToken } = await actions.login(email, password);
+      setUser(found);
+      await storage.setItem(SESSION_KEY, sessionToken);
+      return null;
+    } catch (e: unknown) {
+      if (e instanceof Error) return e.message;
+      return 'Login failed. Please try again.';
+    }
   };
 
   const logout = async () => {

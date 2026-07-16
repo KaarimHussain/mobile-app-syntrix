@@ -104,19 +104,28 @@ export async function refresh(userId?: string) {
 // ---- Actions (API driven) ----
 
 export const actions = {
-  async login(email: string): Promise<User | null> {
+  async login(email: string, password: string): Promise<{ user: User; sessionToken: string }> {
+    const data = await apiFetch('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    const formattedUser = { ...data, _id: data.id || data._id };
+    currentUserId = formattedUser._id;
+    refresh(formattedUser._id);
+    return { user: formattedUser, sessionToken: data.sessionToken };
+  },
+
+  async verifySession(sessionToken: string): Promise<User | null> {
     try {
-      const user = await apiFetch('/auth/login', {
+      const data = await apiFetch('/auth/verify', {
         method: 'POST',
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ sessionToken }),
       });
-      currentUserId = user._id || user.id; // handle db field mapping
-      // Standardize user ID field
-      const formattedUser = { ...user, _id: user.id || user._id };
+      const formattedUser = { ...data, _id: data.id || data._id };
+      currentUserId = formattedUser._id;
       refresh(formattedUser._id);
       return formattedUser;
-    } catch (e) {
-      console.error('Login error:', e);
+    } catch {
       return null;
     }
   },

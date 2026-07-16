@@ -291,9 +291,34 @@ app.post('/api/auth/login', async (req, res) => {
       if (!match) return res.status(401).json({ error: 'Invalid credentials.' });
     }
     const { password_hash, ...safeUser } = user;
-    res.json(safeUser);
+    const sessionToken = jwt.sign(
+      { userId: safeUser.id, email: safeUser.email, role: 'user' },
+      process.env.JWT_SECRET || 'dev_secret',
+      { expiresIn: '30d' }
+    );
+    res.json({ ...safeUser, sessionToken });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Session verify — restores session on app startup without re-entering password
+app.post('/api/auth/verify', async (req, res) => {
+  const { sessionToken } = req.body;
+  try {
+    const payload = jwt.verify(sessionToken, process.env.JWT_SECRET || 'dev_secret');
+    if (payload.role !== 'user') return res.status(401).json({ error: 'Invalid session' });
+    const result = await db.query(
+      'SELECT * FROM users WHERE id = $1 AND active = true',
+      [payload.userId]
+    );
+    if (result.rows.length === 0) return res.status(401).json({ error: 'Session expired' });
+    const user = result.rows[0];
+    if (user.is_blocked) return res.status(403).json({ error: 'Account suspended. Please contact Syntrix support.' });
+    const { password_hash, ...safeUser } = user;
+    res.json(safeUser);
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired session' });
   }
 });
 
