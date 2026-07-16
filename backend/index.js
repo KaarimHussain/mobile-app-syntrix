@@ -170,7 +170,12 @@ function adminAuth(req, res, next) {
 
 app.post('/admin/api/auth/login', (req, res) => {
   const { email, password } = req.body;
-  if (email !== process.env.ADMIN_EMAIL || password !== process.env.ADMIN_PASSWORD) {
+  const adminEmail = (process.env.ADMIN_EMAIL || '').trim();
+  const adminPassword = (process.env.ADMIN_PASSWORD || '').trim();
+  if (!adminEmail || !adminPassword) {
+    return res.status(500).json({ error: 'Admin credentials not configured on server' });
+  }
+  if (email?.trim() !== adminEmail || password !== adminPassword) {
     return res.status(401).json({ error: 'Invalid admin credentials' });
   }
   const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET || 'dev_secret', { expiresIn: '24h' });
