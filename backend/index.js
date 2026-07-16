@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const { PGlite } = require('@electric-sql/pglite');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -27,6 +29,10 @@ async function initDb() {
       phone VARCHAR,
       role VARCHAR NOT NULL,
       active BOOLEAN DEFAULT TRUE,
+      password_hash VARCHAR,
+      is_blocked BOOLEAN DEFAULT FALSE,
+      subscription_status VARCHAR DEFAULT 'active',
+      subscription_expires_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -92,15 +98,17 @@ async function initDb() {
   const usersCheck = await db.query('SELECT COUNT(*) as count FROM users');
   if (parseInt(usersCheck.rows[0].count) === 0) {
     console.log('Seeding initial data...');
-    
+    const demoHash = await bcrypt.hash('demo1234', 10);
+
     // Seed Users
-    await db.query(`
-      INSERT INTO users (id, name, email, phone, role, active) VALUES
-      ('u_owner', 'Kaarim Baig', 'owner@demo.pk', '0300-1112223', 'owner', true),
-      ('u_ali', 'Ali Raza', 'ali@demo.pk', '0301-4445556', 'employee', true),
-      ('u_sana', 'Sana Khan', 'sana@demo.pk', '0302-7778889', 'employee', true),
-      ('u_bilal', 'Bilal Ahmed', 'bilal@demo.pk', '0303-1234567', 'employee', true);
-    `);
+    await db.query(
+      `INSERT INTO users (id, name, email, phone, role, active, password_hash) VALUES
+      ('u_owner', 'Kaarim Baig', 'owner@demo.pk', '0300-1112223', 'owner', true, $1),
+      ('u_ali', 'Ali Raza', 'ali@demo.pk', '0301-4445556', 'employee', true, NULL),
+      ('u_sana', 'Sana Khan', 'sana@demo.pk', '0302-7778889', 'employee', true, NULL),
+      ('u_bilal', 'Bilal Ahmed', 'bilal@demo.pk', '0303-1234567', 'employee', true, NULL)`,
+      [demoHash]
+    );
 
     // Seed Properties
     await db.query(`
@@ -140,20 +148,145 @@ async function notify(userId, type, message) {
   );
 }
 
+// ---- Helpers ----
+
+function generatePassword(len = 12) {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
+  return Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+function adminAuth(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    jwt.verify(token, process.env.JWT_SECRET || 'dev_secret');
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+// ---- Admin routes ----
+
+app.post('/admin/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  if (email !== process.env.ADMIN_EMAIL || password !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Invalid admin credentials' });
+  }
+  const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET || 'dev_secret', { expiresIn: '24h' });
+  res.json({ token });
+});
+
+app.get('/admin/api/owners', adminAuth, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id, name, email, phone, role, active, is_blocked, subscription_status, subscription_expires_at, created_at
+       FROM users WHERE role = 'owner' ORDER BY created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/api/owners', adminAuth, async (req, res) => {
+  const { name, email, phone } = req.body;
+  if (!name || !email) return res.status(400).json({ error: 'Name and email are required' });
+  const id = nextId('owner');
+  const plainPassword = generatePassword();
+  try {
+    const passwordHash = await bcrypt.hash(plainPassword, 10);
+    await db.query(
+      `INSERT INTO users (id, name, email, phone, role, active, password_hash)
+       VALUES ($1, $2, $3, $4, 'owner', true, $5)`,
+      [id, name, email.trim().toLowerCase(), phone || null, passwordHash]
+    );
+    const result = await db.query(
+      `SELECT id, name, email, phone, role, active, is_blocked, subscription_status, subscription_expires_at, created_at
+       FROM users WHERE id = $1`,
+      [id]
+    );
+    res.json({ owner: result.rows[0], generatedPassword: plainPassword });
+  } catch (err) {
+    if (err.message.includes('unique')) return res.status(409).json({ error: 'Email already in use' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/admin/api/owners/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { name, email, phone } = req.body;
+  try {
+    await db.query(
+      'UPDATE users SET name = COALESCE($1, name), email = COALESCE($2, email), phone = COALESCE($3, phone) WHERE id = $4',
+      [name || null, email ? email.trim().toLowerCase() : null, phone || null, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/admin/api/owners/:id/subscription', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { subscription_status, subscription_expires_at } = req.body;
+  try {
+    await db.query(
+      'UPDATE users SET subscription_status = $1, subscription_expires_at = $2 WHERE id = $3',
+      [subscription_status, subscription_expires_at || null, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/admin/api/owners/:id/block', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const current = await db.query('SELECT is_blocked FROM users WHERE id = $1', [id]);
+    if (current.rows.length === 0) return res.status(404).json({ error: 'Owner not found' });
+    const newBlocked = !current.rows[0].is_blocked;
+    await db.query('UPDATE users SET is_blocked = $1 WHERE id = $2', [newBlocked, id]);
+    res.json({ success: true, is_blocked: newBlocked });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/admin/api/owners/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.query('DELETE FROM users WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---- API routes ----
 
 // Login
 app.post('/api/auth/login', async (req, res) => {
-  const { email } = req.body;
+  const { email, password } = req.body;
   try {
     const result = await db.query(
       'SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND active = true',
       [email.trim()]
     );
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid email or user inactive.' });
+      return res.status(401).json({ error: 'Invalid credentials.' });
     }
-    res.json(result.rows[0]);
+    const user = result.rows[0];
+    if (user.is_blocked) {
+      return res.status(403).json({ error: 'Account suspended. Please contact Syntrix support.' });
+    }
+    if (user.password_hash) {
+      const match = await bcrypt.compare(password || '', user.password_hash);
+      if (!match) return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+    const { password_hash, ...safeUser } = user;
+    res.json(safeUser);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

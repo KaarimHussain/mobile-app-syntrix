@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(Get-ChildItem *)",
-      "Bash(npm ls *)"
+      "Bash(npm ls *)",
+      "Bash(dir \"C:\\\\Users\\\\AL SYED COMPUTER\\\\Desktop\\\\mobile-app-syntrix\\\\frontend\" /b)",
+      "Bash(findstr /E \"\\\\.env\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(node --check index.js)"
     ]
   }
 }
