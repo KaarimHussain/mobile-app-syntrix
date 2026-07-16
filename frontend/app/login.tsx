@@ -81,11 +81,6 @@ export default function LoginScreen() {
         />
         <ClayButton title="Sign in" onPress={submit} />
       </ClayCard>
-      <View style={{ marginTop: 20 }}>
-        <Text style={{ color: theme.textSecondary, fontFamily: 'Inter-Regular', fontSize: 12, textAlign: 'center' }}>
-          Demo accounts: owner@demo.pk (Owner) · ali@demo.pk / sana@demo.pk (Employee) — any password
-        </Text>
-      </View>
     </KeyboardAvoidingView>
   );
 }
