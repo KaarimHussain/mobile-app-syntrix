@@ -30,44 +30,30 @@ export default function SubscriptionModal({ owner, onClose, onUpdated }: Props) 
     }
   }
 
+  const inputClass = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-text-body focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary";
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-        <h2 className="text-xl font-semibold text-gray-900">Manage Subscription</h2>
-        <p className="text-sm text-gray-500">{owner.name} — {owner.email}</p>
+        <h2 className="text-xl font-bold text-text-heading">Manage Subscription</h2>
+        <p className="text-sm text-text-muted">{owner.name} — {owner.email}</p>
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-          <select
-            value={status}
-            onChange={e => setStatus(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
+          <label className="block text-sm font-medium text-text-body mb-1">Status</label>
+          <select value={status} onChange={e => setStatus(e.target.value)} className={inputClass}>
             <option value="active">Active</option>
             <option value="expired">Expired</option>
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-          <input
-            type="date"
-            value={expiresAt}
-            onChange={e => setExpiresAt(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <label className="block text-sm font-medium text-text-body mb-1">Expiry Date</label>
+          <input type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} className={inputClass} />
         </div>
         <div className="flex gap-3 pt-1">
-          <button
-            onClick={onClose}
-            className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-50"
-          >
+          <button onClick={onClose} className="flex-1 border border-gray-300 text-text-muted rounded-lg py-2 text-sm font-medium hover:bg-gray-50 transition-colors">
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
+          <button onClick={handleSave} disabled={loading} className="flex-1 bg-primary text-white rounded-lg py-2 text-sm font-semibold hover:bg-primary-hover disabled:opacity-50 transition-colors">
             {loading ? 'Saving...' : 'Save'}
           </button>
         </div>

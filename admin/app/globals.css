@@ -1,26 +1,38 @@
 @import "tailwindcss";
 
+/* Brand token — change this one variable to retheme the entire panel */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --primary:        #16a34a;
+  --primary-hover:  #15803d;
+  --primary-light:  #f0fdf4;
+  --primary-muted:  #dcfce7;
+  --primary-border: #bbf7d0;
+
+  --text-heading: #111827;
+  --text-body:    #374151;
+  --text-muted:   #6b7280;
+  --text-subtle:  #9ca3af;
 }
 
+/* Register tokens as Tailwind utilities */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-primary:        var(--primary);
+  --color-primary-hover:  var(--primary-hover);
+  --color-primary-light:  var(--primary-light);
+  --color-primary-muted:  var(--primary-muted);
+  --color-primary-border: var(--primary-border);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-text-heading: var(--text-heading);
+  --color-text-body:    var(--text-body);
+  --color-text-muted:   var(--text-muted);
+  --color-text-subtle:  var(--text-subtle);
+
+  --font-sans: var(--font-inter);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--text-body);
+  background-color: var(--primary-light);
+  -webkit-font-smoothing: antialiased;
 }
